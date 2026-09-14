@@ -65,7 +65,7 @@ export default function TelegramConfigModal({ isOpen, onClose, onSaved }) {
             </div>
             <div>
               <h3 className="font-semibold text-lg leading-tight">Pengaturan Telegram Bot</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Default Otomatis Terhubung Dari File .env</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Konfigurasi Akun Telegram Anda</p>
             </div>
           </div>
           <button
@@ -143,7 +143,7 @@ export default function TelegramConfigModal({ isOpen, onClose, onSaved }) {
           <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 rounded-xl text-[11px] text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-900/50 flex items-start gap-2">
             <HelpCircle className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
             <p>
-              Nilai default otomatis dimuat dari file <b>.env</b>. Tombol manual <b>Kirim Telegram</b> di website langsung siap dipakai tanpa perlu konfigurasi ulang!
+              Pengaturan ini disimpan secara aman di browser lokal Anda (<b>localStorage</b>) untuk menghubungkan Bot Telegram milik Anda sendiri.
             </p>
           </div>
 
@@ -166,15 +166,6 @@ export default function TelegramConfigModal({ isOpen, onClose, onSaved }) {
                 Simpan Pengaturan
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleResetToEnv}
-              className="w-full py-1.5 text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center gap-1 transition-colors"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Kembalikan ke Default .env</span>
-            </button>
           </div>
         </form>
       </div>

@@ -1,20 +1,14 @@
 // Utility Service for Telegram Bot Integration
 
 export function getTelegramConfig() {
-  const envToken = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TELEGRAM_BOT_TOKEN) || '';
-  const envChatId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TELEGRAM_CHAT_ID) || '';
-
   if (typeof window !== 'undefined') {
-    const localToken = localStorage.getItem('TELEGRAM_BOT_TOKEN');
-    const localChatId = localStorage.getItem('TELEGRAM_CHAT_ID');
+    const localToken = localStorage.getItem('TELEGRAM_BOT_TOKEN') || '';
+    const localChatId = localStorage.getItem('TELEGRAM_CHAT_ID') || '';
 
-    const token = (localToken && localToken.trim() !== '') ? localToken : envToken;
-    const chatId = (localChatId && localChatId.trim() !== '') ? localChatId : envChatId;
-
-    return { token, chatId };
+    return { token: localToken.trim(), chatId: localChatId.trim() };
   }
 
-  return { token: envToken, chatId: envChatId };
+  return { token: '', chatId: '' };
 }
 
 export function saveTelegramConfig(token, chatId) {

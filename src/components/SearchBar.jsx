@@ -69,14 +69,6 @@ export function SearchBar({
           <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             {proxyMode}
           </span>
-          <a 
-            href={originalUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-1 font-semibold transition-colors"
-          >
-            Buka File RSS Asli <ExternalLink className="w-3 h-3" />
-          </a>
         </div>
       </div>
     </div>

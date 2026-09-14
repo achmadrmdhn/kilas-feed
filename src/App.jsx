@@ -11,6 +11,7 @@ import { HeadlineArticle } from './components/HeadlineArticle';
 import { NewsGrid } from './components/NewsGrid';
 import { DetailModal } from './components/DetailModal';
 import { CustomFeedModal } from './components/CustomFeedModal';
+import TelegramConfigModal from './components/TelegramConfigModal';
 import { Toast } from './components/Toast';
 import { Footer } from './components/Footer';
 
@@ -24,6 +25,7 @@ export default function App() {
 
   const [activeModalArticle, setActiveModalArticle] = useState(null);
   const [isCustomFeedModalOpen, setIsCustomFeedModalOpen] = useState(false);
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
   const { isDark, toggleTheme } = useTheme();
@@ -166,6 +168,7 @@ export default function App() {
       <Header
         onRefresh={handleRefresh}
         onOpenCustomFeedModal={() => setIsCustomFeedModalOpen(true)}
+        onOpenTelegramModal={() => setIsTelegramModalOpen(true)}
         onSelectSaved={() => handleSelectCategory('saved')}
         savedCount={bookmarks.length}
         mediaCount={feedsList.length}
@@ -212,6 +215,7 @@ export default function App() {
             isBookmarked={isBookmarked(headlineArticle.id)}
             onToggleBookmark={handleToggleBookmark}
             onOpenModal={setActiveModalArticle}
+            onRequireTelegramConfig={() => setIsTelegramModalOpen(true)}
           />
         )}
 
@@ -231,6 +235,7 @@ export default function App() {
           isBookmarkedFn={isBookmarked}
           onToggleBookmark={handleToggleBookmark}
           onOpenModal={setActiveModalArticle}
+          onRequireTelegramConfig={() => setIsTelegramModalOpen(true)}
         />
       </main>
 
@@ -242,6 +247,7 @@ export default function App() {
         isBookmarked={activeModalArticle ? isBookmarked(activeModalArticle.id) : false}
         onToggleBookmark={handleToggleBookmark}
         onShowToast={showToast}
+        onRequireTelegramConfig={() => setIsTelegramModalOpen(true)}
       />
 
       {/* Custom RSS URL Modal */}
@@ -249,6 +255,13 @@ export default function App() {
         isOpen={isCustomFeedModalOpen}
         onClose={() => setIsCustomFeedModalOpen(false)}
         onAddCustomFeed={handleAddCustomFeed}
+      />
+
+      {/* Telegram Bot Config Modal */}
+      <TelegramConfigModal
+        isOpen={isTelegramModalOpen}
+        onClose={() => setIsTelegramModalOpen(false)}
+        onSaved={() => showToast('Pengaturan Telegram Bot berhasil disimpan!', 'success')}
       />
 
       {/* Footer */}

@@ -13,7 +13,8 @@ export function NewsGrid({
   onResetSearch,
   isBookmarkedFn,
   onToggleBookmark,
-  onOpenModal
+  onOpenModal,
+  onRequireTelegramConfig
 }) {
   if (loading) {
     return (
@@ -126,6 +127,7 @@ export function NewsGrid({
             isBookmarked={isBookmarkedFn(article.id)} 
             onToggleBookmark={onToggleBookmark} 
             onOpenModal={onOpenModal} 
+            onRequireTelegramConfig={onRequireTelegramConfig}
           />
         ))}
       </div>

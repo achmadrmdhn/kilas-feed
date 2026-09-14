@@ -1,9 +1,10 @@
 import React from 'react';
-import { Rss, RefreshCw, Link as LinkIcon, Bookmark, Sun, Moon, Layers } from 'lucide-react';
+import { Rss, RefreshCw, Link as LinkIcon, Bookmark, Sun, Moon, Layers, Send } from 'lucide-react';
 
 export function Header({
   onRefresh,
   onOpenCustomFeedModal,
+  onOpenTelegramModal,
   onSelectSaved,
   savedCount,
   mediaCount = 0,
@@ -58,6 +59,15 @@ export function Header({
             >
               <LinkIcon className="w-4 h-4 text-orange-500 shrink-0" />
               <span className="hidden md:inline">URL Kustom</span>
+            </button>
+
+            <button 
+              onClick={onOpenTelegramModal} 
+              title="Pengaturan Telegram Bot Manual" 
+              className="p-2 sm:px-3 sm:py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all text-xs sm:text-sm font-medium flex items-center gap-1.5 active:scale-95"
+            >
+              <Send className="w-4 h-4 text-sky-500 shrink-0" />
+              <span className="hidden md:inline">Bot Telegram</span>
             </button>
 
             <button 

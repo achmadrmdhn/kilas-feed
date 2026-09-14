@@ -272,6 +272,172 @@ export function parseRssJson(jsonObj, fallbackFeedName = "KilasFeed") {
 
 const FEED_CACHE = new Map();
 
+async function fetchFeedData(feedObj, forceRefresh = false) {
+  if (!feedObj) return { newsList: [], feedTitle: "KilasFeed", lastBuildDate: "", proxyMode: "Error" };
+  const { url, name } = feedObj;
+
+  const cleanUrl = (url || "").trim();
+  const httpsUrl = cleanUrl.replace(/^http:\/\//i, "https://");
+  const urlsToTry = Array.from(new Set([httpsUrl, cleanUrl])).filter(Boolean);
+  const isTempoFeed = cleanUrl.includes("tempo.co");
+
+  // 1. SWR Cache check
+  const cached = FEED_CACHE.get(httpsUrl) || FEED_CACHE.get(cleanUrl);
+  if (cached && !forceRefresh) {
+    return { ...cached, proxyMode: cached.proxyMode + " (Instan)" };
+  }
+
+  // Helper for safe fetch with timeout
+  const fetchTextWithTimeout = async (targetUrl, timeoutMs = 4500) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(targetUrl, { signal: controller.signal, cache: "no-store" });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      return await res.text();
+    } catch (e) {
+      clearTimeout(timer);
+      return null;
+    }
+  };
+
+  // Tempo Strategy
+  if (isTempoFeed) {
+    for (const targetUrl of urlsToTry) {
+      try {
+        const apiTempoUrl = `/api/tempo?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(name)}`;
+        const text = await fetchTextWithTimeout(apiTempoUrl, 5000);
+        if (text) {
+          const json = JSON.parse(text);
+          if (json && json.newsList && json.newsList.length > 0) {
+            const result = { ...json, proxyMode: "Tempo Live" };
+            FEED_CACHE.set(httpsUrl, result);
+            FEED_CACHE.set(cleanUrl, result);
+            return result;
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Strategy 1: Direct XML
+  for (const targetUrl of urlsToTry) {
+    const text = await fetchTextWithTimeout(targetUrl, 4500);
+    if (text && (text.includes("<rss") || text.includes("<feed") || text.includes("<xml"))) {
+      const parsed = parseRssXml(text, name);
+      if (parsed.newsList && parsed.newsList.length > 0) {
+        const result = { ...parsed, proxyMode: "Direct Live" };
+        FEED_CACHE.set(httpsUrl, result);
+        FEED_CACHE.set(cleanUrl, result);
+        return result;
+      }
+    }
+  }
+
+  // Strategy 2: Serverless Proxy /api/rss
+  for (const targetUrl of urlsToTry) {
+    try {
+      const apiRssUrl = `/api/rss?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(name)}`;
+      const text = await fetchTextWithTimeout(apiRssUrl, 5000);
+      if (text) {
+        const json = JSON.parse(text);
+        if (json && json.newsList && json.newsList.length > 0) {
+          const result = { ...json, proxyMode: "Serverless Proxy" };
+          FEED_CACHE.set(httpsUrl, result);
+          FEED_CACHE.set(cleanUrl, result);
+          return result;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Strategy 3: Feed2JSON
+  for (const targetUrl of urlsToTry) {
+    try {
+      const proxyUrl = `https://feed2json.org/convert?url=${encodeURIComponent(targetUrl)}`;
+      const text = await fetchTextWithTimeout(proxyUrl, 4500);
+      if (text) {
+        const json = JSON.parse(text);
+        if (json && json.items && json.items.length > 0) {
+          const parsed = parseFeed2Json(json, name);
+          if (parsed.newsList && parsed.newsList.length > 0) {
+            const result = { ...parsed, proxyMode: "Feed2JSON Live" };
+            FEED_CACHE.set(httpsUrl, result);
+            FEED_CACHE.set(cleanUrl, result);
+            return result;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Strategy 4: RSS2JSON API
+  for (const targetUrl of urlsToTry) {
+    try {
+      const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
+      const text = await fetchTextWithTimeout(proxyUrl, 4500);
+      if (text) {
+        const json = JSON.parse(text);
+        if (json && json.status === "ok" && json.items && json.items.length > 0) {
+          const parsed = parseRssJson(json, name);
+          if (parsed.newsList && parsed.newsList.length > 0) {
+            const result = { ...parsed, proxyMode: "RSS2JSON Live" };
+            FEED_CACHE.set(httpsUrl, result);
+            FEED_CACHE.set(cleanUrl, result);
+            return result;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Strategy 5: AllOrigins GET Proxy
+  for (const targetUrl of urlsToTry) {
+    try {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const text = await fetchTextWithTimeout(proxyUrl, 4500);
+      if (text) {
+        let xmlContent = "";
+        try {
+          const json = JSON.parse(text);
+          xmlContent = json.contents || "";
+        } catch (e) {
+          xmlContent = text;
+        }
+        if (xmlContent && (xmlContent.includes("<rss") || xmlContent.includes("<feed") || xmlContent.includes("<xml"))) {
+          const parsed = parseRssXml(xmlContent, name);
+          if (parsed.newsList && parsed.newsList.length > 0) {
+            const result = { ...parsed, proxyMode: "AllOrigins Live" };
+            FEED_CACHE.set(httpsUrl, result);
+            FEED_CACHE.set(cleanUrl, result);
+            return result;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Strategy 6: Codetabs Proxy
+  for (const targetUrl of urlsToTry) {
+    try {
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+      const text = await fetchTextWithTimeout(proxyUrl, 4500);
+      if (text && (text.includes("<rss") || text.includes("<feed") || text.includes("<xml"))) {
+        const parsed = parseRssXml(text, name);
+        if (parsed.newsList && parsed.newsList.length > 0) {
+          const result = { ...parsed, proxyMode: "Codetabs Live" };
+          FEED_CACHE.set(httpsUrl, result);
+          FEED_CACHE.set(cleanUrl, result);
+          return result;
+        }
+      }
+    } catch (e) {}
+  }
+
+  return { newsList: [], feedTitle: name, lastBuildDate: "-", proxyMode: "Akses Dibatasi" };
+}
+
 export function useRssFeed() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -281,224 +447,55 @@ export function useRssFeed() {
 
   const fetchFeed = useCallback(async (feedObj, forceRefresh = false) => {
     if (!feedObj) return;
-    const { url, name } = feedObj;
-
-    const cleanUrl = (url || "").trim();
-    const httpsUrl = cleanUrl.replace(/^http:\/\//i, "https://");
-    const urlsToTry = Array.from(new Set([httpsUrl, cleanUrl])).filter(Boolean);
-    const isTempoFeed = cleanUrl.includes("tempo.co");
-
-    // 1. SWR Cache: Instant 0ms render if cached data exists
-    const cached = FEED_CACHE.get(httpsUrl) || FEED_CACHE.get(cleanUrl);
-    if (cached && !forceRefresh) {
-      setItems(cached.newsList);
-      setFeedTitle(cached.feedTitle || name);
-      setLastUpdated(cached.lastBuildDate ? formatDateIndo(cached.lastBuildDate) : "Baru saja");
-      setProxyMode(cached.proxyMode + " (Instan)");
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
-
-    // Helper for safe fetch with timeout
-    const fetchTextWithTimeout = async (targetUrl, timeoutMs = 4500) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const res = await fetch(targetUrl, { signal: controller.signal, cache: "no-store" });
-        clearTimeout(timer);
-        if (!res.ok) return null;
-        return await res.text();
-      } catch (e) {
-        clearTimeout(timer);
-        return null;
-      }
-    };
-
-    // Dedicated Tempo Strategy FIRST: /api/tempo endpoint (Node.js serverless proxy with 100% <img> extraction)
-    if (isTempoFeed) {
-      for (const targetUrl of urlsToTry) {
-        try {
-          const apiTempoUrl = `/api/tempo?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(name)}`;
-          const text = await fetchTextWithTimeout(apiTempoUrl, 5000);
-          if (text) {
-            const json = JSON.parse(text);
-            if (json && json.newsList && json.newsList.length > 0) {
-              const result = { ...json, proxyMode: "Tempo Live" };
-              FEED_CACHE.set(httpsUrl, result);
-              FEED_CACHE.set(cleanUrl, result);
-
-              setItems(result.newsList);
-              setFeedTitle(result.feedTitle || name);
-              setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-              setProxyMode("Tempo Live");
-              setLoading(false);
-              return { success: true, count: result.newsList.length };
-            }
-          }
-        } catch (e) {}
-      }
-    }
-
-    // Strategy 1: Direct XML Fetch (For standard feeds when CORS is allowed)
-    for (const targetUrl of urlsToTry) {
-      const text = await fetchTextWithTimeout(targetUrl, 4500);
-      if (text && (text.includes("<rss") || text.includes("<feed") || text.includes("<xml"))) {
-        const parsed = parseRssXml(text, name);
-        if (parsed.newsList && parsed.newsList.length > 0) {
-          const result = { ...parsed, proxyMode: "Direct Live" };
-          FEED_CACHE.set(httpsUrl, result);
-          FEED_CACHE.set(cleanUrl, result);
-
-          setItems(result.newsList);
-          setFeedTitle(result.feedTitle || name);
-          setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-          setProxyMode("Direct Live");
-          setLoading(false);
-          return { success: true, count: result.newsList.length };
-        }
-      }
-    }
-
-    // Strategy 2: Internal Serverless Proxy /api/rss (Fastest & 100% reliable Node proxy for Detik, CNN, CNBC, etc.)
-    for (const targetUrl of urlsToTry) {
-      try {
-        const apiRssUrl = `/api/rss?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(name)}`;
-        const text = await fetchTextWithTimeout(apiRssUrl, 5000);
-        if (text) {
-          const json = JSON.parse(text);
-          if (json && json.newsList && json.newsList.length > 0) {
-            const result = { ...json, proxyMode: "Serverless Proxy" };
-            FEED_CACHE.set(httpsUrl, result);
-            FEED_CACHE.set(cleanUrl, result);
-
-            setItems(result.newsList);
-            setFeedTitle(result.feedTitle || name);
-            setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-            setProxyMode("Serverless Proxy");
-            setLoading(false);
-            return { success: true, count: result.newsList.length };
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 3: Feed2JSON.org Converter (Fallback JSON proxy)
-    for (const targetUrl of urlsToTry) {
-      try {
-        const proxyUrl = `https://feed2json.org/convert?url=${encodeURIComponent(targetUrl)}`;
-        const text = await fetchTextWithTimeout(proxyUrl, 4500);
-        if (text) {
-          const json = JSON.parse(text);
-          if (json && json.items && json.items.length > 0) {
-            const parsed = parseFeed2Json(json, name);
-            if (parsed.newsList && parsed.newsList.length > 0) {
-              const result = { ...parsed, proxyMode: "Feed2JSON Live" };
-              FEED_CACHE.set(httpsUrl, result);
-              FEED_CACHE.set(cleanUrl, result);
-
-              setItems(result.newsList);
-              setFeedTitle(result.feedTitle || name);
-              setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-              setProxyMode("Feed2JSON Live");
-              setLoading(false);
-              return { success: true, count: parsed.newsList.length };
-            }
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 3: RSS2JSON API Converter (Backup JSON endpoint)
-    for (const targetUrl of urlsToTry) {
-      try {
-        const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
-        const text = await fetchTextWithTimeout(proxyUrl, 4500);
-        if (text) {
-          const json = JSON.parse(text);
-          if (json && json.status === "ok" && json.items && json.items.length > 0) {
-            const parsed = parseRssJson(json, name);
-            if (parsed.newsList && parsed.newsList.length > 0) {
-              const result = { ...parsed, proxyMode: "RSS2JSON Live" };
-              FEED_CACHE.set(httpsUrl, result);
-              FEED_CACHE.set(cleanUrl, result);
-
-              setItems(result.newsList);
-              setFeedTitle(result.feedTitle || name);
-              setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-              setProxyMode("RSS2JSON Live");
-              setLoading(false);
-              return { success: true, count: parsed.newsList.length };
-            }
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 4: AllOrigins GET Proxy (RAW XML Backup)
-    for (const targetUrl of urlsToTry) {
-      try {
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-        const text = await fetchTextWithTimeout(proxyUrl, 4500);
-        if (text) {
-          let xmlContent = "";
-          try {
-            const json = JSON.parse(text);
-            xmlContent = json.contents || "";
-          } catch (e) {
-            xmlContent = text;
-          }
-          if (xmlContent && (xmlContent.includes("<rss") || xmlContent.includes("<feed") || xmlContent.includes("<xml"))) {
-            const parsed = parseRssXml(xmlContent, name);
-            if (parsed.newsList && parsed.newsList.length > 0) {
-              const result = { ...parsed, proxyMode: "AllOrigins Live" };
-              FEED_CACHE.set(httpsUrl, result);
-              FEED_CACHE.set(cleanUrl, result);
-
-              setItems(result.newsList);
-              setFeedTitle(result.feedTitle || name);
-              setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-              setProxyMode("AllOrigins Live");
-              setLoading(false);
-              return { success: true, count: parsed.newsList.length };
-            }
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Strategy 5: Codetabs RAW XML Proxy
-    for (const targetUrl of urlsToTry) {
-      try {
-        const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
-        const text = await fetchTextWithTimeout(proxyUrl, 4500);
-        if (text && (text.includes("<rss") || text.includes("<feed") || text.includes("<xml"))) {
-          const parsed = parseRssXml(text, name);
-          if (parsed.newsList && parsed.newsList.length > 0) {
-            const result = { ...parsed, proxyMode: "Codetabs Live" };
-            FEED_CACHE.set(httpsUrl, result);
-            FEED_CACHE.set(cleanUrl, result);
-
-            setItems(result.newsList);
-            setFeedTitle(result.feedTitle || name);
-            setLastUpdated(result.lastBuildDate ? formatDateIndo(result.lastBuildDate) : "Baru saja");
-            setProxyMode("Codetabs Live");
-            setLoading(false);
-            return { success: true, count: parsed.newsList.length };
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (!cached) {
-      setItems([]);
-      setFeedTitle(name);
-      setLastUpdated("-");
-      setProxyMode("Akses Dibatasi");
-    }
+    setLoading(true);
+    const data = await fetchFeedData(feedObj, forceRefresh);
+    setItems(data.newsList);
+    setFeedTitle(data.feedTitle || feedObj.name);
+    setLastUpdated(data.lastBuildDate ? formatDateIndo(data.lastBuildDate) : "Baru saja");
+    setProxyMode(data.proxyMode);
     setLoading(false);
-    return { success: false, count: 0 };
+    return { success: data.newsList.length > 0, count: data.newsList.length };
   }, []);
 
-  return { items, loading, proxyMode, lastUpdated, feedTitle, fetchFeed, setItems };
+  const fetchAllFeeds = useCallback(async (feedsListArg, forceRefresh = false) => {
+    if (!feedsListArg || feedsListArg.length === 0) return;
+
+    setLoading(true);
+    setFeedTitle("Berita Utama Terkini (Seluruh Media)");
+    setProxyMode("Multi-Media Stream");
+
+    const results = await Promise.allSettled(
+      feedsListArg.map(feedObj => fetchFeedData(feedObj, forceRefresh))
+    );
+
+    let combinedList = [];
+    const seenKeys = new Set();
+
+    results.forEach((res, idx) => {
+      if (res.status === 'fulfilled' && res.value && res.value.newsList) {
+        const feedName = feedsListArg[idx]?.name || 'Berita';
+        res.value.newsList.forEach(item => {
+          const titleKey = (item.title || '').toLowerCase().replace(/[^\w]/g, '');
+          if (titleKey && !seenKeys.has(titleKey)) {
+            seenKeys.add(titleKey);
+            combinedList.push({
+              ...item,
+              category: item.category || feedName
+            });
+          }
+        });
+      }
+    });
+
+    // Sort chronologically (newest timestamp first)
+    combinedList.sort((a, b) => b.timestamp - a.timestamp);
+
+    setItems(combinedList);
+    setLastUpdated("Baru saja");
+    setLoading(false);
+
+    return { success: combinedList.length > 0, count: combinedList.length };
+  }, []);
+
+  return { items, loading, proxyMode, lastUpdated, feedTitle, fetchFeed, fetchAllFeeds, setItems };
 }

@@ -48,6 +48,7 @@ export function CategoryNav({
                 onChange={(e) => onSelectFeedIndex(parseInt(e.target.value, 10))} 
                 className="w-full pl-3 pr-8 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm transition-all truncate cursor-pointer"
               >
+                <option value={-1}>🌟 Berita Utama Terkini (Seluruh Media)</option>
                 {Object.entries(groups)
                   .filter(([_, group]) => group.items.length > 0)
                   .map(([catKey, group]) => (
@@ -100,6 +101,21 @@ export function CategoryNav({
 
         {/* Quick Media Chips Bar */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-3 pb-1">
+          <button
+            onClick={() => {
+              if (activeCategory === 'saved') onSelectCategory('semua');
+              onSelectFeedIndex(-1);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              currentFeedIndex === -1 && activeCategory !== 'saved'
+                ? "bg-brand-600 text-white shadow-sm" 
+                : "bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-500"
+            }`}
+          >
+            <span className="text-[11px]">⚡</span>
+            <span>Semua Media (Gabungan)</span>
+          </button>
+
           {filteredChips.map(feed => {
             const origIdx = feeds.findIndex(f => f.id === feed.id);
             const isActive = origIdx === currentFeedIndex && activeCategory !== 'saved';

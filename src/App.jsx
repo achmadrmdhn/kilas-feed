@@ -17,7 +17,7 @@ import { Footer } from './components/Footer';
 
 export default function App() {
   const [feedsList, setFeedsList] = useState(INITIAL_FEEDS);
-  const [currentFeedIndex, setCurrentFeedIndex] = useState(0);
+  const [currentFeedIndex, setCurrentFeedIndex] = useState(-1);
   const [activeCategory, setActiveCategory] = useState('semua');
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +30,7 @@ export default function App() {
 
   const { isDark, toggleTheme } = useTheme();
   const { bookmarks, isBookmarked, toggleBookmark } = useBookmarks();
-  const { items, loading, proxyMode, lastUpdated, feedTitle, fetchFeed } = useRssFeed();
+  const { items, loading, proxyMode, lastUpdated, feedTitle, fetchFeed, fetchAllFeeds } = useRssFeed();
 
   // Show Toast helper
   const showToast = (message, type = 'info') => {
@@ -44,27 +44,38 @@ export default function App() {
   // Fetch Feed when index or feeds change
   useEffect(() => {
     if (activeCategory === 'saved') return;
-    const feed = feedsList[currentFeedIndex];
-    if (feed) {
-      showToast(`Mengambil feed dari ${feed.name}...`, 'info');
-      fetchFeed(feed).then((res) => {
+    if (currentFeedIndex === -1) {
+      showToast('Mengambil berita terkini dari seluruh media...', 'info');
+      fetchAllFeeds(feedsList).then((res) => {
         if (res && res.success) {
-          showToast(`Berhasil memuat ${res.count} berita dari ${feed.name}`, 'success');
-        } else {
-          showToast(`Akses feed ${feed.name} dibatasi oleh server sumber`, 'error');
+          showToast(`Berhasil memuat ${res.count} berita terkini dari seluruh media!`, 'success');
         }
       });
+    } else {
+      const feed = feedsList[currentFeedIndex];
+      if (feed) {
+        showToast(`Mengambil feed dari ${feed.name}...`, 'info');
+        fetchFeed(feed).then((res) => {
+          if (res && res.success) {
+            showToast(`Berhasil memuat ${res.count} berita dari ${feed.name}`, 'success');
+          } else {
+            showToast(`Akses feed ${feed.name} dibatasi oleh server sumber`, 'error');
+          }
+        });
+      }
     }
-  }, [currentFeedIndex, feedsList, activeCategory, fetchFeed]);
+  }, [currentFeedIndex, feedsList, activeCategory, fetchFeed, fetchAllFeeds]);
 
   // Handle Category selection
   const handleSelectCategory = (category) => {
     setActiveCategory(category);
     if (category === 'saved') {
       showToast(`Menampilkan ${bookmarks.length} berita tersimpan`, 'info');
+    } else if (category === 'semua') {
+      setCurrentFeedIndex(-1);
     } else {
-      const currentFeed = feedsList[currentFeedIndex];
-      if (category !== 'semua' && currentFeed.category !== category) {
+      const currentFeed = currentFeedIndex >= 0 ? feedsList[currentFeedIndex] : null;
+      if (!currentFeed || currentFeed.category !== category) {
         const matchIdx = feedsList.findIndex(f => f.category === category);
         if (matchIdx >= 0) setCurrentFeedIndex(matchIdx);
       }
@@ -73,7 +84,7 @@ export default function App() {
 
   // Handle Feed Index selection
   const handleSelectFeedIndex = (idx) => {
-    if (idx < 0 || idx >= feedsList.length) return;
+    if (idx < -1 || idx >= feedsList.length) return;
     if (activeCategory === 'saved') setActiveCategory('semua');
     setCurrentFeedIndex(idx);
   };
@@ -82,6 +93,13 @@ export default function App() {
   const handleRefresh = () => {
     if (activeCategory === 'saved') {
       showToast('Daftar simpanan diperbarui', 'success');
+    } else if (currentFeedIndex === -1) {
+      showToast('Memuat ulang berita dari seluruh media...', 'info');
+      fetchAllFeeds(feedsList, true).then((res) => {
+        if (res && res.success) {
+          showToast(`Berita terkini diperbarui (${res.count} berita)!`, 'success');
+        }
+      });
     } else {
       const feed = feedsList[currentFeedIndex];
       if (feed) {
@@ -154,7 +172,7 @@ export default function App() {
     return result;
   }, [items, bookmarks, activeCategory, searchQuery, sortOption]);
 
-  const currentFeedObj = feedsList[currentFeedIndex] || feedsList[0];
+  const currentFeedObj = currentFeedIndex === -1 ? { name: "Seluruh Media (Gabungan)", url: "#" } : (feedsList[currentFeedIndex] || feedsList[0]);
   const headlineArticle = !searchQuery && activeCategory !== 'saved' && displayedArticles.length > 0
     ? displayedArticles[0]
     : null;
@@ -176,7 +194,7 @@ export default function App() {
         onToggleTheme={toggleTheme}
         onGoHome={() => {
           setActiveCategory('semua');
-          setCurrentFeedIndex(0);
+          setCurrentFeedIndex(-1);
         }}
       />
 
